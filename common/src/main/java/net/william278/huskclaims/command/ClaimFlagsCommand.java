@@ -41,7 +41,7 @@ public class ClaimFlagsCommand extends OnlineUserCommand implements TabCompletab
     private final TrustLevel.Privilege MANAGE_FLAGS = TrustLevel.Privilege.MANAGE_OPERATION_GROUPS;
 
     public ClaimFlagsCommand(@NotNull HuskClaims plugin) {
-        super(List.of("claimflags"), "[set|list]", plugin);
+        super(List.of("claimflags"), "[set|list|all]", plugin);
 
         this.setOperatorCommand(true);
         this.addAdditionalPermissions(Map.of(
@@ -59,13 +59,13 @@ public class ClaimFlagsCommand extends OnlineUserCommand implements TabCompletab
     @Override
     @Nullable
     public List<String> suggest(@NotNull CommandUser user, @NotNull String[] args) {
-        final boolean setting = parseStringArg(args, 0).map(a -> a.equals("set")).orElse(false);
+        final boolean settingAll = parseStringArg(args, 0).map(a -> a.equals("all")).orElse(false);
         return switch (args.length) {
-            case 0, 1 -> Lists.newArrayList("set", "list");
-            case 2 -> setting ? plugin.getOperationListener().getRegisteredOperationTypes().stream()
+            case 0, 1 -> Lists.newArrayList("set", "list", "all");
+            case 2 -> (setting || settingAll) ? plugin.getOperationListener().getRegisteredOperationTypes().stream()
                     .filter(op -> canManageFlag(user, op))
                     .map(OperationType::asMinimalString).toList() : null;
-            case 3 -> setting ? List.of("true", "false") : null;
+            case 3 -> (setting || settingAll) ? List.of("true", "false") : null;
             default -> null;
         };
     }
@@ -90,6 +90,7 @@ public class ClaimFlagsCommand extends OnlineUserCommand implements TabCompletab
         switch (action.toLowerCase(Locale.ENGLISH)) {
             case "set" -> this.handleSetClaimFlag(executor, claim, world, args);
             case "list" -> this.sendClaimFlagsList(executor, claim, world, parseIntArg(args, 0).orElse(1));
+            case "all" -> this.handleSetAllClaimsFlag(executor, world, args);
         }
     }
 
@@ -163,6 +164,69 @@ public class ClaimFlagsCommand extends OnlineUserCommand implements TabCompletab
                                 .build()
                 ).getNearestValidPage(page)
         );
+    }
+
+    private void handleSetAllClaimsFlag(@NotNull OnlineUser executor, @NotNull ClaimWorld world, @NotNull String[] args) {
+        final Optional<OperationType> operationType = parseOperationTypeArg(args, 0);
+        if (operationType.isEmpty()) {
+            plugin.getLocales().getLocale("error_invalid_syntax", getUsage())
+                    .ifPresent(executor::sendMessage);
+            return;
+        }
+
+        // Parse operation type
+        final OperationType type = operationType.get();
+        if (!canManageFlag(executor, type)) {
+            plugin.getLocales().getLocale("error_no_permission_flag", type.asMinimalString())
+                .ifPresent(executor::sendMessage);
+            return;
+        }
+
+        // Parse the value (true/false)
+        final Optional<Boolean> valueOpt = parseBooleanArg(args, 1);
+        if (valueOpt.isEmpty()) {
+            plugin.getLocales().getLocale("error_invalid_syntax", getUsage())
+                    .ifPresent(executor::sendMessage);
+            return;
+        }
+        final boolean value = valueOpt.get();
+
+        // Get all claims in the world (excluding admin claims)
+        final List<Claim> allClaims = world.getClaims().stream()
+                .filter(claim -> claim.getOwner().isPresent())
+                .toList();
+        
+        if (allClaims.isEmpty()) {
+            plugin.getLocales().getLocale("error_no_claims_all_flags")
+                    .ifPresent(executor::sendMessage);
+            return;
+        }
+
+        // Update flags for all claims
+        int updated = 0;
+        for (Claim claim : allClaims) {
+            final Collection<OperationType> types = claim.getDefaultFlags();
+            if (value) {
+                if (types.add(type)) {
+                    updated++;
+                }
+            } else {
+                if (types.remove(type)) {
+                    updated++;
+                }
+            }
+        }
+
+        // Save to database
+        plugin.getDatabase().updateClaimWorld(world);
+
+        // Send confirmation message
+        plugin.getLocales().getLocale("claim_flags_all_updated", 
+                type.asMinimalString(),
+                value ? "enabled" : "disabled",
+                Integer.toString(updated),
+                Integer.toString(allClaims.size()))
+                .ifPresent(executor::sendMessage);
     }
 
     // Check that the user has permission to modify flags in this claim

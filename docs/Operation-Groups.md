@@ -48,5 +48,8 @@ Use `/claimflags list` to bring up a list of enabled operation types in the clai
 
 Click on the listed flags to toggle their allow-state on or off, or use `/claimflags set [operation_type] <true/false>`.
 
+### Adjusting flags for all claims in the world at once
+You can modify a flag for **all claims** (from all players) in the current world using `/claimflags all [operation_type] <true/false>`. This is a powerful administrative command that affects every player's claim in the world you're currently in, making it perfect for server-wide flag configuration changes. This command requires operator permissions.
+
 ### Adjusting the flags outside of claims
 You can also can adjust the value of flags outside of claims (the "Wilderness") by using `/claimflags` while standing outside a claim. This requires the `huskclaims.command.claimflags.world` permission.
