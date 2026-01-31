@@ -59,6 +59,7 @@ public class ClaimFlagsCommand extends OnlineUserCommand implements TabCompletab
     @Override
     @Nullable
     public List<String> suggest(@NotNull CommandUser user, @NotNull String[] args) {
+        final boolean setting = parseStringArg(args, 0).map(a -> a.equals("set")).orElse(false);
         final boolean settingAll = parseStringArg(args, 0).map(a -> a.equals("all")).orElse(false);
         return switch (args.length) {
             case 0, 1 -> Lists.newArrayList("set", "list", "all");
