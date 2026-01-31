@@ -221,13 +221,20 @@ public class ClaimFlagsCommand extends OnlineUserCommand implements TabCompletab
         // Save to database
         plugin.getDatabase().updateClaimWorld(world);
 
-        // Send confirmation message
+        // Send confirmation message with flag list
         plugin.getLocales().getLocale("claim_flags_all_updated", 
                 type.asMinimalString(),
                 value ? "enabled" : "disabled",
                 Integer.toString(updated),
                 Integer.toString(allClaims.size()))
                 .ifPresent(executor::sendMessage);
+
+        // Show the flags list to confirm the change (like in 'set' command)
+        final double changedIndex = plugin.getOperationListener()
+                .getRegisteredOperationTypes().stream()
+                    .filter(op -> canManageFlag(executor, op)).toList().indexOf(type);
+        final int changedPage = (int) Math.ceil(changedIndex / CLAIM_FLAGS_PER_PAGE);
+        this.sendClaimFlagsList(executor, null, world, changedPage);
     }
 
     // Check that the user has permission to modify flags in this claim
